@@ -28,6 +28,8 @@ import sqlite"""
 import pymysql
 import requests
 import csv
+import warnings
+import osmnx as ox
 
 
 def download_price_paid_data(year_from, year_to):
@@ -99,7 +101,9 @@ def housing_upload_join_data(conn, year):
     cur = conn.cursor()
     print("Selecting data for year: " + str(year))
     cur.execute(
-        f'SELECT pp.price, pp.date_of_transfer, po.postcode, pp.property_type, pp.new_build_flag, pp.tenure_type, pp.locality, pp.town_city, pp.district, pp.county, po.country, po.latitude, po.longitude FROM (SELECT price, date_of_transfer, postcode, property_type, new_build_flag, tenure_type, locality, town_city, district, county FROM pp_data WHERE date_of_transfer BETWEEN "'
+        f'SELECT pp.price, pp.date_of_transfer, po.postcode, pp.property_type, pp.new_build_flag, pp.tenure_type, pp.locality, pp.town_city, pp.district, pp.county, po.country, po.latitude, po.longitude,
+        pp.primary_addressable_object_name, pp.secondary_addressable_object_name
+        FROM (SELECT price, date_of_transfer, postcode, property_type, new_build_flag, tenure_type, locality, town_city, district, county, primary_addressable_object_name, secondary_addressable_object_name FROM pp_data WHERE date_of_transfer BETWEEN "'
         + start_date
         + '" AND "'
         + end_date
@@ -121,3 +125,54 @@ def housing_upload_join_data(conn, year):
         + "' INTO TABLE `prices_coordinates_data` FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED by '\"' LINES STARTING BY '' TERMINATED BY '\n';"
     )
     print("Data stored for year: " + str(year))
+
+
+def bounding_extract_region_data(conn, region_name, latitude, longitude, distance_km):
+    cur = conn.cursor()
+    print(
+        f"Selecting data for transactions since in the region {region_name} centered at {latitude}, {longitude}"
+    )
+    cur.execute(
+        """
+    SELECT *
+    FROM housing_data
+    WHERE latitude BETWEEN %s AND %s
+      AND longitude BETWEEN %s AND %s;
+      """,
+        (
+            latitude - distance_km / 2,
+            latitude + distance_km / 2,
+            longitude - distance_km / 2,
+            longitude + distance_km / 2,
+        ),
+    )
+    rows = cur.fetchall()
+
+    csv_file_path = f"{region_name}_housing_data.csv"
+    with open(csv_file_path, "w") as csv_file:
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerows(rows)
+
+def get_bbox(latitude, longitude, bbox_side = 1.0):
+    box_width = bbox_side / 111
+    box_height = bbox_side / 111
+    north = latitude + box_height/2
+    south = latitude - box_width/2
+    west = longitude - box_width/2
+    east = longitude + box_width/2
+    return north, south, east, west
+
+def get_osm_buildings_near_coordinates(latitude, longitude, bbox_side = 1.0):
+    north, south, east, west = get_bbox(latitude, longitude, bbox_side)
+
+    tags = {"building": True}
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        pois = ox.geometries_from_bbox(north, south, east, west, tags)
+
+        # add a default "" if key is not present
+        pois["full_addr"] = pois.get("addr:housenumber", "") + " " + pois.get("addr:street", "") + ", " + pois.get("addr:postcode", "")
+        # pois["addr_full"] = pois.get("addr:housenumber") + " " + pois.get("addr:street") + ", " + pois.get("addr:postcode")
+        pois["has_address"] = pois["addr_full"].str.strip() != ', ,'
+        pois["area_sqm"] = pois.geometry.area
+        return pois
