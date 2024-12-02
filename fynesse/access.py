@@ -32,6 +32,7 @@ import warnings
 import osmnx as ox
 import zipfile
 import io
+import pandas as pd
 
 
 def download_price_paid_data(year_from, year_to):
@@ -184,8 +185,6 @@ def get_osm_buildings_near_coordinates(latitude, longitude, bbox_side=1.0):
         pois["has_address"] = pois["addr_full"].str.strip() != ", ,"
         pois["area_sqm"] = pois.geometry.area
         return pois
-
-
 
 def download_census_data(code, base_dir=''):
   url = f'https://www.nomisweb.co.uk/output/census/2021/census2021-{code.lower()}.zip'
