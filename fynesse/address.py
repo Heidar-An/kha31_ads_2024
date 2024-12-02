@@ -1,4 +1,5 @@
 # This file contains code for suporting addressing questions in the data
+from .config import *
 
 """# Here are some of the imports we might expect
 import sklearn.model_selection  as ms
@@ -20,8 +21,9 @@ import random
 import numpy as np
 
 def k_means(data_np, k=3, iterations=75, tolerance=1e-4):
+    # used to have consistent values
     random.seed(10)
-    num_points, num_flags = data_np.shape
+    num_points, _ = data_np.shape
     # randomly initialize k centroids
     centroids = data_np[random.sample(range(num_points), k)]
 
@@ -40,4 +42,5 @@ def k_means(data_np, k=3, iterations=75, tolerance=1e-4):
         if np.linalg.norm(new_centroids - centroids) < tolerance:
             break
         centroids = new_centroids
+
     return cluster_groups, centroids
