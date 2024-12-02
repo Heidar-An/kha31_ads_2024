@@ -186,6 +186,24 @@ def get_osm_buildings_near_coordinates(latitude, longitude, bbox_side=1.0):
         pois["area_sqm"] = pois.geometry.area
         return pois
 
+def count_pois_near_coordinates(latitude: float, longitude: float, tags: dict, distance_km: float = 1.0):
+    box_width = distance_km / 111
+    box_height = distance_km / 111
+    north = latitude + box_height/2
+    south = latitude - box_width/2
+    west = longitude - box_width/2
+    east = longitude + box_width/2
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore")
+        pois = ox.geometries_from_bbox(north, south, east, west, tags)
+
+    df = pd.DataFrame(pois)
+
+    tag_counter = {}
+    for column in df.columns:
+        tag_counter[column] = df[column].notnull().sum()
+    return tag_counter.items()
+
 def download_census_data(code, base_dir=''):
   url = f'https://www.nomisweb.co.uk/output/census/2021/census2021-{code.lower()}.zip'
   extract_dir = os.path.join(base_dir, os.path.splitext(os.path.basename(url))[0])
