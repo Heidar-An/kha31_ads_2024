@@ -226,7 +226,7 @@ def load_census_data(code, level='msoa'):
 
 def get_student_data(columns_to_drop, column_names):
     student_df = load_census_data("TS062", "oa")
-    student_df = student_df.drop(student_df.columns[columns_to_drop], axis=1).set_index("geography")
+    student_df = student_df.drop(student_df.columns[columns_to_drop], axis=1).set_index("OA21CD")
     student_df.columns = column_names
     student_df = student_df.div(student_df.sum(axis=1), axis=0)
     return student_df
