@@ -232,7 +232,19 @@ def get_student_data(columns_to_drop, column_names):
     student_df = student_df.div(student_df.sum(axis=1), axis=0)
     return student_df
 
-def get_tags_dataframe_for_location(location_to_df, tags_to_keep):
+def get_location_to_df(locations_dict, tags, tags_to_keep):
+    location_to_df = {}
+    for location, (latitude, longitude) in locations_dict.items():
+        pois_df = pd.DataFrame(count_pois_near_coordinates(latitude, longitude, tags))
+        if pois_df.shape[0] == 0:
+            continue
+        pois_df.columns = ["tag", "count"]
+
+        pois_df = pois_df[pois_df['tag'].isin(tags_to_keep)]
+        location_to_df[location] = pois_df
+    return location_to_df
+
+def get_all_tags_count(location_to_df, tags_to_keep):
     all_rows = []
     for location, pois_df in location_to_df.items():
         row_data = {tag:0 for tag in tags_to_keep}
