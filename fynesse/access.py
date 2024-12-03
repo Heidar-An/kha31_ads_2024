@@ -111,8 +111,10 @@ def count_pois_near_coordinates(latitude: float, longitude: float, tags: dict, d
     east = longitude + box_width/2
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
-        pois = ox.geometries_from_bbox(north, south, east, west, tags)
-
+        try:
+            pois = ox.geometries_from_bbox(north, south, east, west, tags)
+        except Exception as e:
+            return {}
     df = pd.DataFrame(pois)
 
     return count_osm_tags(df)
@@ -128,6 +130,17 @@ def get_location_to_df(locations_dict, tags, tags_to_keep):
         pois_df = pois_df[pois_df["tag"].isin(tags_to_keep)]
         location_to_df[location] = pois_df
     return location_to_df
+
+def get_tags_count_with_position(pois_df, lat, long, tags_to_keep):
+    all_rows = []
+    row_data = {tag:0 for tag in tags_to_keep}
+    row_data["LAT"] = lat
+    row_data["LONG"] = long
+    
+    for _, row in pois_df.iterrows():
+        row_data[row["tag"]] = row["count"]
+    all_rows.append(row_data)
+    return pd.DataFrame(all_rows)
 
 def get_all_tags_count(location_to_df, tags_to_keep):
     all_rows = []
