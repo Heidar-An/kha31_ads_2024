@@ -231,3 +231,13 @@ def get_student_data(columns_to_drop, column_names):
     student_df.columns = column_names
     student_df = student_df.div(student_df.sum(axis=1), axis=0)
     return student_df
+
+def get_tags_dataframe_for_location(location_to_df, tags_to_keep):
+    all_rows = []
+    for location, pois_df in location_to_df.items():
+        row_data = {tag:0 for tag in tags_to_keep}
+        row_data["Location"] = location
+        for _, row in pois_df.iterrows():
+            row_data[row["tag"]] = row["count"]
+        all_rows.append(row_data)
+    return pd.DataFrame(all_rows)
