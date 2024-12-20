@@ -773,19 +773,6 @@ def initialize_general_health_db(conn):
     load_csv_data_into_db(conn, "general_health.csv", "general_health")
 
 
-"""
-CREATE TABLE IF NOT EXISTS `general_health_2011` (
-        `db_id` bigint(20) unsigned NOT NULL,
-        `local_authorities_code` VARCHAR(10) NOT NULL,
-        `local_authorities` VARCHAR(255) NOT NULL,
-        `general_health_code` int NOT NULL,
-        `general_health` VARCHAR(255) NOT NULL,
-        `observation` INT NOT NULL,
-        PRIMARY KEY (`db_id`)
-        ) DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1;
-"""
-
-
 def initialize_health_db_2011(conn):
     curr = conn.cursor()
 
