@@ -1,24 +1,9 @@
-# This file contains code for suporting addressing questions in the data
 from .config import *
-
-"""# Here are some of the imports we might expect
-import sklearn.model_selection  as ms
-import sklearn.linear_model as lm
-import sklearn.svm as svm
-import sklearn.naive_bayes as naive_bayes
-import sklearn.tree as tree
-
-import GPy
-import torch
-import tensorflow as tf
-
-# Or if it's a statistical analysis
-import scipy.stats"""
-
-"""Address a particular question that arises from the data"""
+from . import access, address
 
 import random
 import numpy as np
+import matplotlib.pyplot as plt
 
 def k_means(data_np, k=3, iterations=75, tolerance=1e-4):
     # used to have consistent values
@@ -44,3 +29,13 @@ def k_means(data_np, k=3, iterations=75, tolerance=1e-4):
         centroids = new_centroids
 
     return cluster_groups, centroids
+
+def plot_model_coefficients(rf_model):
+    coefficients = rf_model.feature_importances_
+    plt.figure(figsize=(10,5))
+    plt.bar(access.updated_feature_cols, coefficients)
+    plt.xticks(rotation=45, ha='right')
+    plt.title("Random Forest Feature Importances")
+    plt.ylabel("Coefficient Value")
+    plt.tight_layout()
+    plt.show()

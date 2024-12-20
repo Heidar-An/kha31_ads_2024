@@ -258,7 +258,7 @@ def get_null_counts(conn, table_name):
     # https://stackoverflow.com/questions/7831371/is-there-a-way-to-get-a-list-of-column-names-in-sqlite
     # using PRAGMA TO GET COLUMN NAMES
     curr = conn.cursor()
-    
+
     curr.execute(f"SHOW COLUMNS FROM {table_name};")
     columns_info = curr.fetchall()
 
@@ -662,7 +662,7 @@ def initialize_general_health_db(conn):
     curr.execute("""CREATE INDEX local_authorities_code ON `general_health` (`local_authorities_code`);""")
     conn.commit()
 
-    load_csv_data_into_db(conn, "general_health.csv", "census_coordinates")
+    load_csv_data_into_db(conn, "general_health.csv", "general_health")
 
 
 
