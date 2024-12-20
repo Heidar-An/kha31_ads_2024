@@ -173,6 +173,30 @@ def initialize_census_student_coordinates_join_db(conn):
 
     load_csv_data_into_db(conn, "census_student_coordinates_join.csv", "census_student_coordinates_join")
 
+def initialize_orientation_db(conn):
+    curr = conn.cursor()
+
+    curr.execute("""DROP TABLE IF EXISTS `orientation`;""")
+    curr.execute(
+        """
+        CREATE TABLE IF NOT EXISTS `orientation` (
+        `db_id` bigint(20) unsigned NOT NULL,
+        `local_authorities_code` VARCHAR(10) NOT NULL,
+        `local_authority` VARCHAR(255) NOT NULL,
+        `non_hetero_pop` decimal(4, 4) NOT NULL,
+        PRIMARY KEY (`db_id`)
+        ) DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1;
+    """.replace(
+            "\n", " "
+        )
+    )
+
+    curr.execute("""ALTER TABLE `orientation` MODIFY `db_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,AUTO_INCREMENT=1;""")
+
+    curr.execute("""CREATE INDEX local_authorities_code ON `orientation` (`local_authorities_code`);""")
+    conn.commit()
+
+    load_csv_data_into_db(conn, "orientation.csv", "orientation")
 
 def initialize_osm_data_db(conn):
     curr = conn.cursor()
@@ -264,6 +288,32 @@ def create_student_coordinates_join(conn):
     student_df = pd.DataFrame(read_all_data(conn, "census_student_pop"))
     merged = census_df.merge(student_df, on="OA21CD")
     merged.to_csv("./census_student_coordinates_join.csv", index=False)
+
+def create_orientation(conn):
+    orientation = pd.read_csv("./sexual_orientation.csv")
+    filtered_orientation_df = orientation[~orientation['Sexual orientation (6 categories) Code'].isin([-8, 5])]
+    
+    pivot_df = filtered_orientation_df.pivot_table(
+        index=["Lower tier local authorities Code", "Lower tier local authorities"],
+        columns="Sexual orientation (6 categories) Code",
+        values="Observation",
+        aggfunc="sum",
+        fill_value=0
+    )
+
+    pivot_df["proportion"] = (pivot_df[2] + pivot_df[3] + pivot_df[4]) / pivot_df[1]
+
+    orientation = orientation.merge(
+        pivot_df["proportion"].reset_index(),
+        on=["Lower tier local authorities Code", "Lower tier local authorities"],
+        how="left"
+    )[["Lower tier local authorities Code", "Lower tier local authorities", "proportion"]]
+
+    orientation = orientation[["Lower tier local authorities Code", "Lower tier local authorities", "proportion"]]
+    orientation = orientation.drop_duplicates().reset_index(drop=True)
+
+    orientation.to_csv("./orientation.csv")
+
 
 def create_osm_data(conn):
     merged_census_df = pd.DataFrame(read_all_data(conn, "census_student_coordinates_join"))
