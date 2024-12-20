@@ -420,3 +420,96 @@ def bounding_extract_region_data(conn, region_name, latitude, longitude, distanc
     with open(csv_file_path, "w") as csv_file:
         csv_writer = csv.writer(csv_file)
         csv_writer.writerows(rows)
+
+"""
+Project 2:
+------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+------------------------------------------------------------------------------------------------------
+"""
+
+"""
+---------------------------------------INITIALIZE SQL DATABASES---------------------------------------
+"""
+
+
+def initialize_general_health_db(conn):
+    curr = conn.cursor()
+
+    curr.execute("""DROP TABLE IF EXISTS `general_health`;""")
+    curr.execute(
+        """
+        CREATE TABLE IF NOT EXISTS `general_health` (
+        `db_id` bigint(20) unsigned NOT NULL,
+        `local_authorities_code` VARCHAR(10) NOT NULL,
+        `local_authorities` VARCHAR(255) NOT NULL,
+        `general_health_code` int NOT NULL,
+        `general_health` VARCHAR(255) NOT NULL,
+        `observation` INT NOT NULL,
+        PRIMARY KEY (`db_id`)
+        ) DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1;
+    """.replace(
+            "\n", " "
+        )
+    )
+
+    curr.execute("""CREATE INDEX local_authorities_code ON `general_health` (`local_authorities_code`);""")
+    conn.commit()
+
+    load_csv_data_into_db(conn, "general_health.csv", "census_coordinates")
+
+
+
+def initialize_education_db(conn):
+    curr = conn.cursor()
+
+    curr.execute("""DROP TABLE IF EXISTS `education`;""")
+    curr.execute(
+        """
+        CREATE TABLE IF NOT EXISTS `education` (
+        `db_id` bigint(20) unsigned NOT NULL,
+        `local_authorities_code` VARCHAR(10) NOT NULL,
+        `local_authorities` VARCHAR(255) NOT NULL,
+        `level_of_education_code` int NOT NULL,
+        `level_of_education` VARCHAR(512) NOT NULL,
+        `observation` INT NOT NULL,
+        PRIMARY KEY (`db_id`)
+        ) DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1;
+    """.replace(
+            "\n", " "
+        )
+    )
+
+    curr.execute("""CREATE INDEX local_authorities_code ON `education` (`local_authorities_code`);""")
+    conn.commit()
+
+    load_csv_data_into_db(conn, "level_of_education.csv", "education")
+
+
+def initialize_income_db(conn):
+    curr = conn.cursor()
+
+    curr.execute("""DROP TABLE IF EXISTS `income`;""")
+    curr.execute(
+        """
+        CREATE TABLE IF NOT EXISTS `income` (
+        `db_id` bigint(20) unsigned NOT NULL,
+        `local_authorities_code` VARCHAR(10) NOT NULL,
+        `region` VARCHAR(255) NOT NULL,
+        `local_authority` VARCHAR(255) NOT NULL,
+        `tenth_percentile` int NOT NULL,
+        `fiftieth_percentile` int NOT NULL,
+        `ninetieth_percentile` int NOT NULL,
+        PRIMARY KEY (`db_id`)
+        ) DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1;
+    """.replace(
+            "\n", " "
+        )
+    )
+
+    curr.execute("""CREATE INDEX local_authorities_code ON `income` (`local_authorities_code`);""")
+    conn.commit()
+
+    load_csv_data_into_db(conn, "income_statistics_removed.csv", "income")
