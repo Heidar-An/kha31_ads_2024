@@ -131,3 +131,12 @@ def plot_comparison(predicted_profile, actual_profile, city_name):
   plt.title(f"Age Profile Comparison for {city_name}")
   plt.legend()
   plt.show()
+
+
+def plot_predicted_student(y, y_pred):
+    plt.figure(figsize=(8, 6))
+    plt.scatter(y, y_pred)
+    plt.xlabel('Actual Percentage of Student Population')
+    plt.ylabel('Predicted Percentage of Student Population')
+    plt.title('Correlation between Actual and Predicted Percentage of Student Population Proportion')
+    plt.show()
