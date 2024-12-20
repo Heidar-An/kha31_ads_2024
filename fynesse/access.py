@@ -9,6 +9,47 @@ import warnings
 import zipfile
 import io
 
+locations_dict = {
+    "Nottingham": (52.938, -1.198),
+    "Cambridge": (52.2054, 0.1132),
+    "Elmbridge": (51.364, -0.394),
+    "South Cambridgeshire District": (52.075, 0.1747),
+    "Isles of Scilly": (49.913, -6.322),
+    "Croydon": (51.3753, -0.0957),
+    "Oxford": (51.7570, -1.2545),
+    "Euston Square": (51.5246, -0.1340),
+    "Temple": (51.5115, -0.1160),
+    "Imperial": (51.498, -0.174),
+}
+
+# amenity -> education -> everything
+# amenity -> sustenance -> [fast_food, cafe]
+# amenity -> transportion -> [bicycle_parking, bicycle_rental, bicycle_repair_station]
+# amenity -> university
+# building -> [dormitory, college, school]
+
+tags = {
+        "amenity": [
+            "fast_food",
+            "cafe",
+            "bicycle_parking",
+            "bicycle_rental",
+            "bicycle_repair_station",
+            "university"
+        ],
+        "building": ["dormitory", "college", "school"],
+        "diet": False,
+        "addr": False,
+        "payment": False,
+        "brand": False,
+}
+
+# pois = Points of Interest (POIs)
+tags_to_keep = ["amenity", "bicycle_rental",
+                "bicycle_parking", "capacity",
+                "cuisine", "takeaway",
+                "building", "brand"]
+
 
 """
 ---------------------------------------INITIALIZE SQL DATABASES---------------------------------------
@@ -51,16 +92,10 @@ def initialize_census_coordinates_db(conn):
         CREATE TABLE IF NOT EXISTS `census_coordinates` (
         `FID` int NOT NULL,
         `OA21CD` VARCHAR(10) COLLATE utf8_bin NOT NULL,
-        `LSOA21CD` VARCHAR(10) COLLATE utf8_bin NOT NULL,
         `LSOA21NM` VARCHAR(255) COLLATE utf8_bin NOT NULL,
         `LSOA21NMW` VARCHAR(255) COLLATE utf8_bin,
-        `BNG_E` int NOT NULL,
-        `BNG_N` int NOT NULL,
         `LAT` decimal(12,5) NOT NULL,
         `LONG` decimal(12,5) NOT NULL,
-        `Shape__Area` decimal(12, 5) DEFAULT NULL,
-        `Shape__Length` decimal(12, 5) DEFAULT NULL,
-        `GlobalID` varchar(36) NOT NULL,
         PRIMARY KEY (`FID`)
         ) DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1;
     """.replace(
@@ -68,10 +103,10 @@ def initialize_census_coordinates_db(conn):
         )
     )
     curr.execute("""CREATE INDEX geography_code ON `census_coordinates` (`OA21CD`);""")
+    conn.commit()
 
     load_csv_data_into_db(conn, "census_data.csv", "census_coordinates")
 
-    conn.commit()
 
 
 def initialize_census_student_pop_db(conn):
@@ -84,6 +119,7 @@ def initialize_census_student_pop_db(conn):
         `OA21CD` VARCHAR(10) COLLATE utf8_bin NOT NULL,
         `TOTAL_POP` DECIMAL(3, 2) DEFAULT NULL,
         `STUDENT_POP` DECIMAL(3, 2) DEFAULT NULL,
+        `TOTAL_RAW_POP` INT DEFAULT NULL,
         PRIMARY KEY (`OA21CD`)
         ) DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1;
     """.replace(
@@ -92,10 +128,10 @@ def initialize_census_student_pop_db(conn):
     )
 
     curr.execute("""CREATE INDEX geography_code ON `census_student_pop` (`OA21CD`);""")
+    conn.commit()
 
     load_csv_data_into_db(conn, "student_data.csv", "census_student_pop")
 
-    conn.commit()
 
 
 def initialize_census_student_coordinates_join_db(conn):
@@ -107,18 +143,13 @@ def initialize_census_student_coordinates_join_db(conn):
         CREATE TABLE IF NOT EXISTS `census_student_coordinates_join` (
         `FID` int NOT NULL,
         `OA21CD` VARCHAR(255) COLLATE utf8_bin NOT NULL,
-        `LSOA21CD` VARCHAR(10) COLLATE utf8_bin NOT NULL,
         `LSOA21NM` VARCHAR(255) COLLATE utf8_bin NOT NULL,
         `LSOA21NMW` VARCHAR(255) COLLATE utf8_bin,
-        `BNG_E` int NOT NULL,
-        `BNG_N` int NOT NULL,
         `LAT` decimal(12,5) NOT NULL,
         `LONG` decimal(12,5) NOT NULL,
-        `Shape__Area` decimal(12, 5) DEFAULT NULL,
-        `Shape__Length` decimal(12, 5) DEFAULT NULL,
-        `GlobalID` varchar(36) NOT NULL,
         `TOTAL_POP` decimal(3,2) DEFAULT NULL,
         `STUDENT_POP` decimal(3,2) DEFAULT NULL,
+        `TOTAL_RAW_POP` INT DEFAULT NULL,
         PRIMARY KEY (`FID`)
         ) DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1;
     """.replace(
@@ -131,6 +162,8 @@ def initialize_census_student_coordinates_join_db(conn):
     )
 
     conn.commit()
+
+    load_csv_data_into_db(conn, "census_student_coordinates_join.csv", "census_student_coordinates_join")
 
 
 def initialize_osm_data_db(conn):
@@ -162,6 +195,37 @@ def initialize_osm_data_db(conn):
 
     conn.commit()
 
+    load_csv_data_into_db(conn, "osm_data.csv", "osm_data")
+
+"""
+---------------------------------------READ FROM SQL---------------------------------------
+"""
+
+def read_all_data(conn, table_name):
+    curr = conn.cursor()
+    curr.execute(f"SELECT * FROM {table_name};")
+    return curr.fetchall()
+
+def calculate_number_of_rows(conn, table_name):
+    curr = conn.cursor()
+    curr.execute(f"SELECT COUNT(*) FROM {table_name};")
+    return curr.fetchall()
+
+"""
+---------------------------------------CREATE CSVs---------------------------------------
+"""
+
+def create_census_student_pop():
+    download_census_data("TS062")
+    student_df = get_student_data([0,2,4,5,6,7,8,9,10,11], ["TOTAL_POP", "STUDENT_POP"])
+    student_df.to_csv("./student_data.csv")
+
+
+def create_student_coordinates_join(conn):
+    census_df = pd.DataFrame(read_all_data(conn, "census_coordinates"))
+    student_df = pd.DataFrame(read_all_data(conn, "census_student_pop"))
+    merged = census_df.merge(student_df, on="OA21CD")
+    merged.to_csv("./census_student_coordinates_join.csv", index=False)
 
 """
 ---------------------------------------CENSUS DATA---------------------------------------
@@ -199,7 +263,9 @@ def get_student_data(columns_to_drop, column_names):
         "OA21CD"
     )
     student_df.columns = column_names
+    student_raw_total_pop = student_df["TOTAL_POP"]
     student_df = student_df.div(student_df.sum(axis=1), axis=0)
+    student_df["TOTAL_RAW_POP"] = student_raw_total_pop
     return student_df
 
 
@@ -288,19 +354,7 @@ def get_osm_tags_near_coordinates(latitude, longitude, tags, bbox_side=1.0):
         warnings.simplefilter("ignore")
         pois = ox.geometries_from_bbox(north, south, east, west, tags)
 
-        # add a default "" if key is not present
-        # pois["full_addr"] = (
-        #     pois.get("addr:housenumber", "")
-        #     + " "
-        #     + pois.get("addr:street", "")
-        #     + ", "
-        #     + pois.get("addr:postcode", "")
-        # )
-        # pois["addr_full"] = pois.get("addr:housenumber") + " " + pois.get("addr:street") + ", " + pois.get("addr:postcode")
-        # pois["has_address"] = pois["addr_full"].str.strip() != ", ,"
-        # pois["area_sqm"] = pois.geometry.area
         return pois
-
 
 """
 ---------------------------------------DATABASE---------------------------------------
@@ -394,6 +448,15 @@ def housing_upload_join_data(conn, year):
 ---------------------------------------OTHER---------------------------------------
 """
 
+# https://stackoverflow.com/questions/76804871/create-save-and-load-spatial-index-using-geopandas
+# Found mention of the geopandas and shapely library from the link above (after trying to learn how spatial indices work
+# after another student mentioned it to me)
+
+# census_gdf = gpd.GeoDataFrame(
+#     merged_df,
+#     geometry=gpd.points_from_xy(merged_df['LONG'], merged_df['LAT']),
+#     crs="EPSG:4326"
+# )
 
 def bounding_extract_region_data(conn, region_name, latitude, longitude, distance_km):
     cur = conn.cursor()
@@ -455,6 +518,8 @@ def initialize_general_health_db(conn):
         )
     )
 
+    curr.execute("""ALTER TABLE `general_health` MODIFY `db_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,AUTO_INCREMENT=1;""")
+
     curr.execute("""CREATE INDEX local_authorities_code ON `general_health` (`local_authorities_code`);""")
     conn.commit()
 
@@ -481,6 +546,7 @@ def initialize_education_db(conn):
             "\n", " "
         )
     )
+    curr.execute("""ALTER TABLE `education` MODIFY `db_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,AUTO_INCREMENT=1;""")
 
     curr.execute("""CREATE INDEX local_authorities_code ON `education` (`local_authorities_code`);""")
     conn.commit()
@@ -508,6 +574,8 @@ def initialize_income_db(conn):
             "\n", " "
         )
     )
+
+    curr.execute("""ALTER TABLE `income` MODIFY `db_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,AUTO_INCREMENT=1;""")
 
     curr.execute("""CREATE INDEX local_authorities_code ON `income` (`local_authorities_code`);""")
     conn.commit()
