@@ -883,7 +883,49 @@ def initialize_education_2011(conn):
 ---------------------------------------CREATE CSVs---------------------------------------
 """
 
-# def create_health_2011():
+def create_health_2011():
+    # basically identical to the code below....
+    health_mapping = {
+        "All categories: General health": -8,
+        "Very good health": 1,
+        "Good health": 2,
+        "Fair health": 3,
+        "Bad health": 4,
+        "Very bad health": 5,
+    }
+
+    # Read the CSV file
+    data = pd.read_csv("input_health.csv")
+
+    # Prepare the data for the SQL table
+    sql_data = []
+    db_id = 1  # Start db_id counter
+
+    for _, row in data.iterrows():
+        for health_category, code in health_mapping.items():
+            observation_column = f"General Health: {health_category}; measures: Value"
+
+            # Skip if the column is not in the CSV file
+            if observation_column not in row:
+                continue
+
+            sql_data.append({
+                "db_id": db_id,
+                "local_authorities_code": row["geography code"],
+                "local_authorities": row["geography"],
+                "general_health_code": code,
+                "general_health": health_category,
+                "observation": row[observation_column],
+            })
+            db_id += 1
+
+    output_file = "output_health_for_sql.csv"
+    with open(output_file, mode="w", newline="") as file:
+        writer = csv.DictWriter(file, fieldnames=[
+            "db_id", "local_authorities_code", "local_authorities", "general_health_code", "general_health", "observation"
+        ])
+        writer.writeheader()
+        writer.writerows(sql_data)
 
 
 def create_education_2011():
