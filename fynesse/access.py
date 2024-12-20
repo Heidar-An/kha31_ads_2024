@@ -219,6 +219,11 @@ def calculate_number_of_rows(conn, table_name):
     curr.execute(f"SELECT COUNT(*) FROM {table_name};")
     return curr.fetchall()
 
+def get_first_row(conn, table_name):
+    curr = conn.cursor()
+    curr.execute(f"SELECT * FROM {table_name} LIMIT 1;")
+    return curr.fetchall()
+
 """
 ---------------------------------------CREATE CSVs---------------------------------------
 """
