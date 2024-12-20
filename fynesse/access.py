@@ -1,100 +1,212 @@
 from .config import *
 
-"""These are the types of import we might expect in this file
-import httplib2
-import oauth2
-import tables
-import mongodb
-import sqlite"""
-
-# This file accesses the data
-
-"""Place commands in this file to access the data electronically. Don't remove any missing values, or deal with outliers. Make sure you have legalities correct, both intellectual property and personal data privacy rights. Beyond the legal side also think about the ethical issues around this data. """
-
-
-def data():
-    """Read the data from the web or local file, returning structured format such as a data frame"""
-    raise NotImplementedError
-
-
-# from .config import *
-
-"""These are the types of import we might expect in this file
-import httplib2
-import oauth2
-import tables
-import mongodb
-import sqlite"""
+import pandas as pd
+import osmnx as ox
 import pymysql
 import requests
 import csv
 import warnings
-import osmnx as ox
 import zipfile
 import io
-import pandas as pd
 
-def bounding_extract_region_data(conn, region_name, latitude, longitude, distance_km):
-    cur = conn.cursor()
-    print(
-        f"Selecting data for transactions since in the region {region_name} centered at {latitude}, {longitude}"
-    )
-    cur.execute(
+
+"""
+---------------------------------------INITIALIZE SQL DATABASES---------------------------------------
+"""
+
+
+def initialize_db(conn, name_of_database):
+    curr = conn.cursor()
+    curr.execute("SET SQL_MODE = 'NO_AUTO_VALUE_ON_ZERO';")
+    curr.execute("SET time_zone = '+00:00';")
+
+    curr.execute(f"USE {name_of_database};")
+
+    conn.commit()
+    # return conn?
+
+
+def load_csv_data_into_db(conn, csv_file_name, table_name):
+    curr = conn.cursor()
+
+    curr.execute(
+        f"""
+        LOAD DATA LOCAL INFILE "./{csv_file_name}"
+        INTO TABLE `{table_name}`
+        FIELDS TERMINATED BY ','
+        OPTIONALLY ENCLOSED BY '"'
+        LINES TERMINATED BY '\n'
+        IGNORE 1 LINES;
+    """
+    )  # need to ignore first line(s) because it seems to include column names for some reason??
+    conn.commit()
+
+
+def initialize_census_coordinates_db(conn):
+    curr = conn.cursor()
+
+    curr.execute("""DROP TABLE IF EXISTS `census_coordinates`;""")
+    curr.execute(
         """
-    SELECT *
-    FROM housing_data
-    WHERE latitude BETWEEN %s AND %s
-      AND longitude BETWEEN %s AND %s;
-      """,
-        (
-            latitude - distance_km / 2,
-            latitude + distance_km / 2,
-            longitude - distance_km / 2,
-            longitude + distance_km / 2,
-        ),
+        CREATE TABLE IF NOT EXISTS `census_coordinates` (
+        `FID` int NOT NULL,
+        `OA21CD` VARCHAR(10) COLLATE utf8_bin NOT NULL,
+        `LSOA21CD` VARCHAR(10) COLLATE utf8_bin NOT NULL,
+        `LSOA21NM` VARCHAR(255) COLLATE utf8_bin NOT NULL,
+        `LSOA21NMW` VARCHAR(255) COLLATE utf8_bin,
+        `BNG_E` int NOT NULL,
+        `BNG_N` int NOT NULL,
+        `LAT` decimal(12,5) NOT NULL,
+        `LONG` decimal(12,5) NOT NULL,
+        `Shape__Area` decimal(12, 5) DEFAULT NULL,
+        `Shape__Length` decimal(12, 5) DEFAULT NULL,
+        `GlobalID` varchar(36) NOT NULL,
+        PRIMARY KEY (`FID`)
+        ) DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1;
+    """.replace(
+            "\n", " "
+        )
     )
-    rows = cur.fetchall()
+    curr.execute("""CREATE INDEX geography_code ON `census_coordinates` (`OA21CD`);""")
 
-    csv_file_path = f"{region_name}_housing_data.csv"
-    with open(csv_file_path, "w") as csv_file:
-        csv_writer = csv.writer(csv_file)
-        csv_writer.writerows(rows)
+    load_csv_data_into_db(conn, "census_data.csv", "census_coordinates")
+
+    conn.commit()
+
+
+def initialize_census_student_pop_db(conn):
+    curr = conn.cursor()
+
+    curr.execute("""DROP TABLE IF EXISTS `census_student_pop`;""")
+    curr.execute(
+        """
+        CREATE TABLE IF NOT EXISTS `census_student_pop` (
+        `OA21CD` VARCHAR(10) COLLATE utf8_bin NOT NULL,
+        `TOTAL_POP` DECIMAL(3, 2) DEFAULT NULL,
+        `STUDENT_POP` DECIMAL(3, 2) DEFAULT NULL,
+        PRIMARY KEY (`OA21CD`)
+        ) DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1;
+    """.replace(
+            "\n", " "
+        )
+    )
+
+    curr.execute("""CREATE INDEX geography_code ON `census_student_pop` (`OA21CD`);""")
+
+    load_csv_data_into_db(conn, "student_data.csv", "census_student_pop")
+
+    conn.commit()
+
+
+def initialize_census_student_coordinates_join_db(conn):
+    curr = conn.cursor()
+
+    curr.execute("""DROP TABLE IF EXISTS `census_student_coordinates_join`;""")
+    curr.execute(
+        """
+        CREATE TABLE IF NOT EXISTS `census_student_coordinates_join` (
+        `FID` int NOT NULL,
+        `OA21CD` VARCHAR(255) COLLATE utf8_bin NOT NULL,
+        `LSOA21CD` VARCHAR(10) COLLATE utf8_bin NOT NULL,
+        `LSOA21NM` VARCHAR(255) COLLATE utf8_bin NOT NULL,
+        `LSOA21NMW` VARCHAR(255) COLLATE utf8_bin,
+        `BNG_E` int NOT NULL,
+        `BNG_N` int NOT NULL,
+        `LAT` decimal(12,5) NOT NULL,
+        `LONG` decimal(12,5) NOT NULL,
+        `Shape__Area` decimal(12, 5) DEFAULT NULL,
+        `Shape__Length` decimal(12, 5) DEFAULT NULL,
+        `GlobalID` varchar(36) NOT NULL,
+        `TOTAL_POP` decimal(3,2) DEFAULT NULL,
+        `STUDENT_POP` decimal(3,2) DEFAULT NULL,
+        PRIMARY KEY (`FID`)
+        ) DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1;
+    """.replace(
+            "\n", " "
+        )
+    )
+
+    curr.execute(
+        """CREATE INDEX geography_code ON `census_student_coordinates_join` (`OA21CD`);"""
+    )
+
+    conn.commit()
+
+
+def initialize_osm_data_db(conn):
+    curr = conn.cursor()
+
+    curr.execute("""DROP TABLE IF EXISTS `osm_data`;""")
+    curr.execute(
+        """
+        CREATE TABLE IF NOT EXISTS `osm_data` (
+        `FID` int NOT NULL,
+        `LAT` decimal(12,5) NOT NULL,
+        `LONG` decimal(12,5) NOT NULL,
+        `amenity_count` int DEFAULT 0,
+        `bicycle_rental_count` int DEFAULT 0,
+        `bicycle_parking_count` int DEFAULT 0,
+        `capacity_count` int DEFAULT 0,
+        `cuisine_count` int DEFAULT 0,
+        `takeaway_count` int DEFAULT 0,
+        `building_count` int DEFAULT 0,
+        `brand_count` int DEFAULT 0,
+        PRIMARY KEY (`FID`)
+        ) DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1;
+    """.replace(
+            "\n", " "
+        )
+    )
+
+    curr.execute("""CREATE INDEX lat_long ON `osm_data` (`LAT`, `LONG`);""")
+
+    conn.commit()
+
 
 """
 ---------------------------------------CENSUS DATA---------------------------------------
 """
 
-def download_census_data(code, base_dir=''):
-  url = f'https://www.nomisweb.co.uk/output/census/2021/census2021-{code.lower()}.zip'
-  extract_dir = os.path.join(base_dir, os.path.splitext(os.path.basename(url))[0])
 
-  if os.path.exists(extract_dir) and os.listdir(extract_dir):
-    print(f"Files already exist at: {extract_dir}.")
-    return
+def download_census_data(code, base_dir=""):
+    url = f"https://www.nomisweb.co.uk/output/census/2021/census2021-{code.lower()}.zip"
+    extract_dir = os.path.join(base_dir, os.path.splitext(os.path.basename(url))[0])
 
-  os.makedirs(extract_dir, exist_ok=True)
-  response = requests.get(url)
-  response.raise_for_status()
+    if os.path.exists(extract_dir) and os.listdir(extract_dir):
+        print(f"Files already exist at: {extract_dir}.")
+        return
 
-  with zipfile.ZipFile(io.BytesIO(response.content)) as zip_ref:
-    zip_ref.extractall(extract_dir)
+    os.makedirs(extract_dir, exist_ok=True)
+    response = requests.get(url)
+    response.raise_for_status()
 
-  print(f"Files extracted to: {extract_dir}")
+    with zipfile.ZipFile(io.BytesIO(response.content)) as zip_ref:
+        zip_ref.extractall(extract_dir)
 
-def load_census_data(code, level='msoa'):
-  return pd.read_csv(f'census2021-{code.lower()}/census2021-{code.lower()}-{level}.csv')
+    print(f"Files extracted to: {extract_dir}")
+
+
+def load_census_data(code, level="msoa"):
+    return pd.read_csv(
+        f"census2021-{code.lower()}/census2021-{code.lower()}-{level}.csv"
+    )
+
 
 def get_student_data(columns_to_drop, column_names):
     student_df = load_census_data("TS062", "oa")
     student_df = student_df.rename(columns={"geography": "OA21CD"})
-    student_df = student_df.drop(student_df.columns[columns_to_drop], axis=1).set_index("OA21CD")
+    student_df = student_df.drop(student_df.columns[columns_to_drop], axis=1).set_index(
+        "OA21CD"
+    )
     student_df.columns = column_names
     student_df = student_df.div(student_df.sum(axis=1), axis=0)
     return student_df
 
+
 """
 ---------------------------------------OSMNX---------------------------------------
 """
+
 
 def count_osm_tags(df):
     tag_counter = {}
@@ -102,13 +214,16 @@ def count_osm_tags(df):
         tag_counter[column] = df[column].notnull().sum()
     return tag_counter.items()
 
-def count_pois_near_coordinates(latitude: float, longitude: float, tags: dict, distance_km: float = 1.0):
+
+def count_pois_near_coordinates(
+    latitude: float, longitude: float, tags: dict, distance_km: float = 1.0
+):
     box_width = distance_km / 111
     box_height = distance_km / 111
-    north = latitude + box_height/2
-    south = latitude - box_width/2
-    west = longitude - box_width/2
-    east = longitude + box_width/2
+    north = latitude + box_height / 2
+    south = latitude - box_width / 2
+    west = longitude - box_width / 2
+    east = longitude + box_width / 2
     with warnings.catch_warnings():
         warnings.simplefilter("ignore")
         try:
@@ -118,6 +233,7 @@ def count_pois_near_coordinates(latitude: float, longitude: float, tags: dict, d
     df = pd.DataFrame(pois)
 
     return count_osm_tags(df)
+
 
 def get_location_to_df(locations_dict, tags, tags_to_keep):
     location_to_df = {}
@@ -131,26 +247,29 @@ def get_location_to_df(locations_dict, tags, tags_to_keep):
         location_to_df[location] = pois_df
     return location_to_df
 
+
 def get_tags_count_with_position(pois_df, lat, long, tags_to_keep):
     all_rows = []
-    row_data = {tag:0 for tag in tags_to_keep}
+    row_data = {tag: 0 for tag in tags_to_keep}
     row_data["LAT"] = lat
     row_data["LONG"] = long
-    
+
     for _, row in pois_df.iterrows():
         row_data[row["tag"]] = row["count"]
     all_rows.append(row_data)
     return pd.DataFrame(all_rows)
 
+
 def get_all_tags_count(location_to_df, tags_to_keep):
     all_rows = []
     for location, pois_df in location_to_df.items():
-        row_data = {tag:0 for tag in tags_to_keep}
+        row_data = {tag: 0 for tag in tags_to_keep}
         row_data["Location"] = location
         for _, row in pois_df.iterrows():
             row_data[row["tag"]] = row["count"]
         all_rows.append(row_data)
     return pd.DataFrame(all_rows)
+
 
 def get_bbox(latitude, longitude, bbox_side=1.0):
     box_width = bbox_side / 111
@@ -182,9 +301,12 @@ def get_osm_tags_near_coordinates(latitude, longitude, tags, bbox_side=1.0):
         # pois["area_sqm"] = pois.geometry.area
         return pois
 
+
 """
 ---------------------------------------DATABASE---------------------------------------
 """
+
+
 def download_price_paid_data(year_from, year_to):
     # Base URL where the dataset is stored
     base_url = (
@@ -210,6 +332,7 @@ def download_price_paid_data(year_from, year_to):
                 ) as file:
                     file.write(response.content)
 
+
 def create_connection(user, password, host, database, port=3306):
     """Create a database connection to the MariaDB database
         specified by the host url and database name.
@@ -234,6 +357,7 @@ def create_connection(user, password, host, database, port=3306):
     except Exception as e:
         print(f"Error connecting to the MariaDB Server: {e}")
     return conn
+
 
 def housing_upload_join_data(conn, year):
     start_date = str(year) + "-01-01"
@@ -264,3 +388,35 @@ def housing_upload_join_data(conn, year):
         + "' INTO TABLE `prices_coordinates_data` FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED by '\"' LINES STARTING BY '' TERMINATED BY '\n';"
     )
     print("Data stored for year: " + str(year))
+
+
+"""
+---------------------------------------OTHER---------------------------------------
+"""
+
+
+def bounding_extract_region_data(conn, region_name, latitude, longitude, distance_km):
+    cur = conn.cursor()
+    print(
+        f"Selecting data for transactions since in the region {region_name} centered at {latitude}, {longitude}"
+    )
+    cur.execute(
+        """
+    SELECT *
+    FROM housing_data
+    WHERE latitude BETWEEN %s AND %s
+      AND longitude BETWEEN %s AND %s;
+      """,
+        (
+            latitude - distance_km / 2,
+            latitude + distance_km / 2,
+            longitude - distance_km / 2,
+            longitude + distance_km / 2,
+        ),
+    )
+    rows = cur.fetchall()
+
+    csv_file_path = f"{region_name}_housing_data.csv"
+    with open(csv_file_path, "w") as csv_file:
+        csv_writer = csv.writer(csv_file)
+        csv_writer.writerows(rows)
