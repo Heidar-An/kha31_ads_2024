@@ -17,6 +17,12 @@ feature_cols = [
     "takeaway_count", "building_count", "brand_count", "TOTAL_RAW_POP"
 ]
 
+updated_feature_cols = [
+    "amenity_count",
+    "bicycle_parking_count", "capacity_count", "cuisine_count",
+    "takeaway_count", "building_count", "brand_count", "TOTAL_RAW_POP"
+]
+
 locations_dict = {
     "Nottingham": (52.938, -1.198),
     "Cambridge": (52.2054, 0.1132),
@@ -173,17 +179,17 @@ def initialize_census_student_coordinates_join_db(conn):
 
     load_csv_data_into_db(conn, "census_student_coordinates_join.csv", "census_student_coordinates_join")
 
-def initialize_orientation_db(conn):
+def initialize_proficiency_db(conn):
     curr = conn.cursor()
 
-    curr.execute("""DROP TABLE IF EXISTS `orientation`;""")
+    curr.execute("""DROP TABLE IF EXISTS `proficiency`;""")
     curr.execute(
         """
-        CREATE TABLE IF NOT EXISTS `orientation` (
+        CREATE TABLE IF NOT EXISTS `proficiency` (
         `db_id` bigint(20) unsigned NOT NULL,
         `local_authorities_code` VARCHAR(10) NOT NULL,
         `local_authority` VARCHAR(255) NOT NULL,
-        `non_hetero_pop` decimal(4, 4) NOT NULL,
+        `non_main_language_pop` decimal(4, 4) NOT NULL,
         PRIMARY KEY (`db_id`)
         ) DEFAULT CHARSET=utf8 COLLATE=utf8_bin AUTO_INCREMENT=1;
     """.replace(
@@ -191,12 +197,12 @@ def initialize_orientation_db(conn):
         )
     )
 
-    curr.execute("""ALTER TABLE `orientation` MODIFY `db_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,AUTO_INCREMENT=1;""")
+    curr.execute("""ALTER TABLE `proficiency` MODIFY `db_id` bigint(20) unsigned NOT NULL AUTO_INCREMENT,AUTO_INCREMENT=1;""")
 
-    curr.execute("""CREATE INDEX local_authorities_code ON `orientation` (`local_authorities_code`);""")
+    curr.execute("""CREATE INDEX local_authorities_code ON `proficiency` (`local_authorities_code`);""")
     conn.commit()
 
-    load_csv_data_into_db(conn, "orientation.csv", "orientation")
+    load_csv_data_into_db(conn, "proficiency.csv", "proficiency")
 
 def initialize_osm_data_db(conn):
     curr = conn.cursor()
@@ -258,7 +264,7 @@ def get_null_counts(conn, table_name):
     column_names = [info[1] for info in columns_info]
 
     null_counts = {}
-    
+
     for column in column_names:
         curr.execute(f"SELECT COUNT(*) FROM {table_name} WHERE {column} IS NULL;")
         null_count = curr.fetchone()[0]
@@ -289,13 +295,13 @@ def create_student_coordinates_join(conn):
     merged = census_df.merge(student_df, on="OA21CD")
     merged.to_csv("./census_student_coordinates_join.csv", index=False)
 
-def create_orientation(conn):
-    orientation = pd.read_csv("./sexual_orientation.csv")
-    filtered_orientation_df = orientation[~orientation['Sexual orientation (6 categories) Code'].isin([-8, 5])]
-    
-    pivot_df = filtered_orientation_df.pivot_table(
-        index=["Lower tier local authorities Code", "Lower tier local authorities"],
-        columns="Sexual orientation (6 categories) Code",
+def create_proficiency(conn):
+    proficiency = pd.read_csv("./proficiency_in_english.csv")
+    filtered_proficiency_df = proficiency[~proficiency["Proficiency in English language (6 categories) Code"].isin([-8, 5])]
+
+    pivot_df = filtered_proficiency_df.pivot_table(
+        index=["Output Areas Code", "Output Areas"],
+        columns="Proficiency in English language (6 categories) Code",
         values="Observation",
         aggfunc="sum",
         fill_value=0
@@ -303,16 +309,16 @@ def create_orientation(conn):
 
     pivot_df["proportion"] = (pivot_df[2] + pivot_df[3] + pivot_df[4]) / pivot_df[1]
 
-    orientation = orientation.merge(
+    proficiency = proficiency.merge(
         pivot_df["proportion"].reset_index(),
-        on=["Lower tier local authorities Code", "Lower tier local authorities"],
+        on=["Output Areas Code", "Output Areas"],
         how="left"
-    )[["Lower tier local authorities Code", "Lower tier local authorities", "proportion"]]
+    )[["Output Areas Code", "Output Areas", "proportion"]]
 
-    orientation = orientation[["Lower tier local authorities Code", "Lower tier local authorities", "proportion"]]
-    orientation = orientation.drop_duplicates().reset_index(drop=True)
+    proficiency = proficiency[["Output Areas Code", "Output Areas", "proportion"]]
+    proficiency = proficiency.drop_duplicates().reset_index(drop=True)
 
-    orientation.to_csv("./orientation.csv")
+    proficiency.to_csv("./proficiency.csv")
 
 
 def create_osm_data(conn):
