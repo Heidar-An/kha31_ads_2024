@@ -224,6 +224,31 @@ def get_first_row(conn, table_name):
     curr.execute(f"SELECT * FROM {table_name} LIMIT 1;")
     return curr.fetchall()
 
+def get_null_counts(conn, table_name):
+    # https://stackoverflow.com/questions/7831371/is-there-a-way-to-get-a-list-of-column-names-in-sqlite
+    # using PRAGMA TO GET COLUMN NAMES
+    curr = conn.cursor()
+
+    curr.execute(f"PRAGMA table_info({table_name});")
+    columns_info = curr.fetchall()
+    column_names = [info[1] for info in columns_info]
+
+    null_counts = {}
+    
+    for column in column_names:
+        curr.execute(f"SELECT COUNT(*) FROM {table_name} WHERE {column} IS NULL;")
+        null_count = curr.fetchone()[0]
+        null_counts[column] = null_count
+
+    curr.execute(f"SELECT COUNT(*) FROM {table_name};")
+    total_row_count = curr.fetchone()[0]
+
+    null_counts_df = pd.DataFrame(null_counts.items(), columns=["column_name", "null_counts"])
+    null_counts_df = null_counts_df.transpose()
+
+    summary_row = pd.DataFrame([["total_element_count", total_row_count]], columns=null_counts_df.columns)
+    return pd.concat([null_counts_df, summary_row])
+
 """
 ---------------------------------------CREATE CSVs---------------------------------------
 """
