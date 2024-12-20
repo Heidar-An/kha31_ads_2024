@@ -258,10 +258,11 @@ def get_null_counts(conn, table_name):
     # https://stackoverflow.com/questions/7831371/is-there-a-way-to-get-a-list-of-column-names-in-sqlite
     # using PRAGMA TO GET COLUMN NAMES
     curr = conn.cursor()
-
-    curr.execute(f"PRAGMA table_info({table_name});")
+    
+    curr.execute(f"SHOW COLUMNS FROM {table_name};")
     columns_info = curr.fetchall()
-    column_names = [info[1] for info in columns_info]
+
+    column_names = [col[0] for col in columns_info]
 
     null_counts = {}
 
