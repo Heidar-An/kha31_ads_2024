@@ -6,6 +6,7 @@ import matplotlib.pyplot as plt
 import osmnx as ox
 import numpy as np
 import pandas as pd
+import seaborn as sns
 from sklearn.linear_model import Ridge, Lasso
 from sklearn.model_selection import cross_val_score
 from statistics import mean
@@ -139,4 +140,32 @@ def plot_predicted_student(y, y_pred):
     plt.xlabel('Actual Percentage of Student Population')
     plt.ylabel('Predicted Percentage of Student Population')
     plt.title('Correlation between Actual and Predicted Percentage of Student Population Proportion')
+    plt.show()
+
+def look_at_correlation_between_features_and_result(proficiency_merged):
+    correlation_results = proficiency_merged[access.feature_cols + ['STUDENT_POP', 'non_main_language_pop']] \
+    .corr()['STUDENT_POP'] \
+    .drop('STUDENT_POP')
+
+    sorted_correlations = correlation_results.abs().sort_values(ascending=False)
+
+    plt.figure(figsize=(12, 8))
+    sns.barplot(
+        x=sorted_correlations.values,
+        y=sorted_correlations.index,
+        palette="coolwarm",
+        edgecolor='black'
+    )
+
+    plt.title('Correlation of Features and Proportion with Student Population', fontsize=18, fontweight='bold')
+    plt.xlabel('Correlation Coefficient', fontsize=14)
+    plt.ylabel('Features', fontsize=14)
+    plt.xticks(fontsize=12)
+    plt.yticks(fontsize=12)
+
+    for index, value in enumerate(sorted_correlations.values):
+        plt.text(value, index, f'{value:.2f}', va='center', ha='left', fontsize=10)
+
+    plt.grid(axis='x', linestyle='--', alpha=0.7)
+    plt.tight_layout()
     plt.show()
