@@ -23,18 +23,6 @@ updated_feature_cols = [
     "takeaway_count", "building_count", "brand_count", "TOTAL_RAW_POP"
 ]
 
-locations_dict = {
-    "Nottingham": (52.938, -1.198),
-    "Cambridge": (52.2054, 0.1132),
-    "Elmbridge": (51.364, -0.394),
-    "South Cambridgeshire District": (52.075, 0.1747),
-    "Isles of Scilly": (49.913, -6.322),
-    "Croydon": (51.3753, -0.0957),
-    "Oxford": (51.7570, -1.2545),
-    "Euston Square": (51.5246, -0.1340),
-    "Temple": (51.5115, -0.1160),
-    "Imperial": (51.498, -0.174),
-}
 
 # amenity -> education -> everything
 # amenity -> sustenance -> [fast_food, cafe]
@@ -631,6 +619,23 @@ Project 2:
 ------------------------------------------------------------------------------------------------------
 ------------------------------------------------------------------------------------------------------
 """
+
+education_feature_cols = []
+
+locations_dict = {
+    "Nottingham": (52.938, -1.198),
+    "Cambridge": (52.2054, 0.1132),
+    "Elmbridge": (51.364, -0.394),
+    "South Cambridgeshire District": (52.075, 0.1747),
+    "Isles of Scilly": (49.913, -6.322),
+    "Croydon": (51.3753, -0.0957),
+    "Oxford": (51.7570, -1.2545),
+    "Euston Square": (51.5246, -0.1340),
+    "Temple": (51.5115, -0.1160),
+    "Imperial": (51.498, -0.174),
+}
+
+education_tags = {}
 
 """
 ---------------------------------------INITIALIZE SQL DATABASES---------------------------------------
