@@ -894,18 +894,15 @@ def create_health_2011():
         "Very bad health": 5,
     }
 
-    # Read the CSV file
     data = pd.read_csv("input_health.csv")
 
-    # Prepare the data for the SQL table
     sql_data = []
-    db_id = 1  # Start db_id counter
+    db_id = 1
 
     for _, row in data.iterrows():
         for health_category, code in health_mapping.items():
             observation_column = f"General Health: {health_category}; measures: Value"
 
-            # Skip if the column is not in the CSV file
             if observation_column not in row:
                 continue
 
