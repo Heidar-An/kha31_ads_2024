@@ -9,6 +9,14 @@ import warnings
 import zipfile
 import io
 
+from tqdm import tqdm
+
+feature_cols = [
+    "LAT", "LONG", "amenity_count", "bicycle_rental_count",
+    "bicycle_parking_count", "capacity_count", "cuisine_count",
+    "takeaway_count", "building_count", "brand_count", "TOTAL_RAW_POP"
+]
+
 locations_dict = {
     "Nottingham": (52.938, -1.198),
     "Cambridge": (52.2054, 0.1132),
@@ -227,10 +235,41 @@ def create_student_coordinates_join(conn):
     merged = census_df.merge(student_df, on="OA21CD")
     merged.to_csv("./census_student_coordinates_join.csv", index=False)
 
+def create_osm_data(conn):
+    merged_census_df = pd.DataFrame(read_all_data(conn, "census_student_coordinates_join"))
+
+    osm_tag_counts = []
+    # merged_census_df = merged_census_df.sort_values(by=['LAT', 'LONG'])
+    # block_size = 100
+    # selected_indices = []
+    # for i in range(0, len(merged_census_df), block_size):
+    #     block = merged_census_df.iloc[i:i+block_size]
+    #     random_index = block.sample(n=1).index[0]
+    #     selected_indices.append(random_index)
+    # selected_rows_df = merged_census_df.loc[selected_indices]
+
+    for _, row in tqdm(merged_census_df.iterrows()):
+        latitude = row["LAT"]
+        longitude = row["LONG"]
+        fid = row["FID"]
+        osm_tag_count = count_pois_near_coordinates(latitude, longitude, tags)
+        # handle case explicitly when we don't receive any POIs
+        if len(osm_tag_count) == 0:
+            osm_tag_counts.append(get_all_tags_count_with_position_and_fid(pd.DataFrame([]), fid, latitude, longitude, tags_to_keep))
+            continue
+
+        osm_tag_count = pd.DataFrame(osm_tag_count)
+        osm_tag_count.columns = ["tag", "count"]
+
+        osm_tag_counts.append(get_all_tags_count_with_position_and_fid(osm_tag_count, fid, latitude, longitude, tags_to_keep))
+
+    osm_counts_df = pd.concat(osm_tag_counts, ignore_index=True)
+    osm_counts_df.to_csv("./osm_data.csv", index=False)
+
+
 """
 ---------------------------------------CENSUS DATA---------------------------------------
 """
-
 
 def download_census_data(code, base_dir=""):
     url = f"https://www.nomisweb.co.uk/output/census/2021/census2021-{code.lower()}.zip"
@@ -280,6 +319,19 @@ def count_osm_tags(df):
         tag_counter[column] = df[column].notnull().sum()
     return tag_counter.items()
 
+def get_all_tags_count_with_position_and_fid(pois_df, fid, lat, long, tags_to_keep):
+    all_rows = []
+    row_data = {tag:0 for tag in tags_to_keep}
+    row_data["FID"] = fid
+    row_data["LAT"] = lat
+    row_data["LONG"] = long
+
+    if not pois_df.empty:
+        pois_df = pois_df[pois_df["tag"].isin(tags_to_keep)]
+    for _, row in pois_df.iterrows():
+        row_data[row["tag"]] = row["count"]
+    all_rows.append(row_data)
+    return pd.DataFrame(all_rows)
 
 def count_pois_near_coordinates(
     latitude: float, longitude: float, tags: dict, distance_km: float = 1.0
