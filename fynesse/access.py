@@ -937,3 +937,35 @@ def create_education_2011():
         )
         writer.writeheader()
         writer.writerows(sql_data)
+
+def create_osm_health_education_income():
+    health_tags = {'amenity': ['doctors', 'hospital', 'pharmacy', 'veterinary', 'clinic'],
+               'leisure': ['fitness_centre', 'fitness_station']}
+
+    education_tags = {'amenity': ['college', 'library', 'school', 'university']}
+
+    income_tags = {'building': True}
+
+    osm_features = []
+
+    for city, coords in locations_dict.items():
+        
+        health_counts =  count_pois_near_coordinates(coords[0], coords[1], health_tags)
+        health_count = sum([value for key, value in health_counts])
+
+        education_counts = count_pois_near_coordinates(coords[0], coords[1], education_tags)
+        education_count = sum([value for key, value in education_counts])
+
+        # NOT USED:
+        income_counts = count_pois_near_coordinates(coords[0], coords[1], income_tags)
+        income_count = sum([value for key, value in income_counts])
+
+        osm_features.append({
+            'city': city,
+            'osm_health_count': health_count,
+            'osm_education_count': education_count,
+            'osm_income_count': income_count
+        })
+
+    osm_df = pd.DataFrame(osm_features).set_index('city')
+    osm_df.to_csv("osm_health_education_income_features.csv")
